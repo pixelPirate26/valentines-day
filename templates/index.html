@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💕</text></svg>">
+    <link type="text/css" rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Starfield -->
+    <div id="starfield"></div>
+    
+    <!-- Falling Petals -->
+    <div id="falling-petals"></div>
+    
+    <!-- Audio -->
+    <audio id="bgMusic" loop preload="auto">
+        <source src="{{ url_for('static', filename='audio/music.mp3') }}" type="audio/mpeg">
+    </audio>
+    
+    <div id="main">
+        <div id="wrap">
+            <div id="text">
+                <div id="code">
+                    {% for message in messages %}
+                    <span class="say">{{ message }}</span><br>
+                    {% endfor %}
+                </div>
+            </div>
+            <canvas id="canvas" width="1100" height="680"></canvas>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="{{ url_for('static', filename='js/valentine.js') }}"></script>
+    
+    <script>
+    // ============================================
+    // STARFIELD
+    // ============================================
+    function createStarfield() {
+        var starfield = document.getElementById('starfield');
+        var starCount = 100;
+        
+        for (var i = 0; i < starCount; i++) {
+            var star = document.createElement('div');
+            star.className = 'star';
+            star.style.left = Math.random() * 100 + '%';
+            star.style.top = Math.random() * 100 + '%';
+            
+            var size = Math.random() * 2 + 1;
+            star.style.width = size + 'px';
+            star.style.height = size + 'px';
+            
+            var colors = ['#ffffff', '#fff0f5', '#ffb6c1', '#ffc0cb'];
+            star.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            star.style.animationDuration = (Math.random() * 3 + 2) + 's';
+            star.style.animationDelay = (Math.random() * 5) + 's';
+            
+            starfield.appendChild(star);
+        }
+    }
+
+    // ============================================
+    // MOUSE SPARKLES
+    // ============================================
+    var lastSparkleTime = 0;
+    
+    function createMouseTrail() {
+        document.addEventListener('mousemove', function(e) {
+            var now = Date.now();
+            if (now - lastSparkleTime < 50) return;
+            lastSparkleTime = now;
+            
+            var sparkle = document.createElement('div');
+            sparkle.className = 'mouse-sparkle';
+            
+            var sparkles = ['💕', '💗', '✨', '💖', '♥', '💘', '🌹'];
+            sparkle.textContent = sparkles[Math.floor(Math.random() * sparkles.length)];
+            
+            sparkle.style.left = (e.clientX + (Math.random() - 0.5) * 20) + 'px';
+            sparkle.style.top = (e.clientY + (Math.random() - 0.5) * 20) + 'px';
+            
+            document.body.appendChild(sparkle);
+            
+            setTimeout(function() {
+                if (sparkle.parentNode) sparkle.parentNode.removeChild(sparkle);
+            }, 1000);
+        });
+    }
+
+    // ============================================
+    // FALLING ROSE PETALS
+    // ============================================
+    var petalInterval = null;
+    
+    function startFallingPetals() {
+        var container = document.getElementById('falling-petals');
+        var petals = ['🌹', '🥀', '💐', '🌸', '❤️', '💕', '🌺'];
+        
+        petalInterval = setInterval(function() {
+            var petal = document.createElement('div');
+            petal.className = 'petal';
+            petal.textContent = petals[Math.floor(Math.random() * petals.length)];
+            petal.style.left = (Math.random() * 100) + '%';
+            petal.style.fontSize = (Math.random() * 12 + 14) + 'px';
+            
+            var duration = Math.random() * 5 + 6;
+            petal.style.animationDuration = duration + 's';
+            
+            container.appendChild(petal);
+            
+            setTimeout(function() {
+                if (petal.parentNode) petal.parentNode.removeChild(petal);
+            }, duration * 1000);
+        }, 300);
+    }
+
+    // ============================================
+    // MAIN
+    // ============================================
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, initializing Valentine...');
+        
+        createStarfield();
+        createMouseTrail();
+        
+        var canvas = document.getElementById('canvas');
+        if (!canvas) {
+            console.error('Canvas not found!');
+            return;
+        }
+        
+        console.log('Canvas found, creating Valentine...');
+        var valentine = new Valentine(canvas);
+        console.log('Valentine created, starting animation loop...');
+        
+        // Animation complete callback
+        valentine.onComplete = function() {
+            startFallingPetals();
+            setTimeout(function() {
+                var codeEl = document.getElementById('code');
+                if (codeEl) {
+                    codeEl.style.display = 'block';
+                    // Simple typewriter
+                    var str = codeEl.innerHTML;
+                    var progress = 0;
+                    codeEl.innerHTML = '';
+                    var timer = setInterval(function() {
+                        var current = str.substr(progress, 1);
+                        if (current == '<') {
+                            progress = str.indexOf('>', progress) + 1;
+                        } else {
+                            progress++;
+                        }
+                        codeEl.innerHTML = str.substring(0, progress) + (progress % 2 ? '_' : '');
+                        if (progress >= str.length) {
+                            clearInterval(timer);
+                            codeEl.innerHTML = str;
+                        }
+                    }, 75);
+                }
+            }, 500);
+        };
+        
+        // Click handler - NO audio trigger here (music starts with animation)
+        canvas.addEventListener('click', function(e) {
+            playAudio();
+            
+            var rect = canvas.getBoundingClientRect();
+            // FIX: Account for CSS scaling (width vs rect.width)
+            var scaleX = canvas.width / rect.width;
+            var scaleY = canvas.height / rect.height;
+            
+            var x = (e.clientX - rect.left) * scaleX;
+            var y = (e.clientY - rect.top) * scaleY;
+            
+            if (valentine.checkHover(x, y)) {
+                valentine.start();
+            }
+        });
+        
+        // Hover effect
+        canvas.addEventListener('mousemove', function(e) {
+            var rect = canvas.getBoundingClientRect();
+            var x = e.clientX - rect.left;
+            var y = e.clientY - rect.top;
+            
+            if (valentine.checkHover(x, y)) {
+                canvas.classList.add('hand');
+            } else {
+                canvas.classList.remove('hand');
+            }
+        });
+        
+        // Animation loop
+        function animate() {
+            valentine.update();
+            valentine.draw();
+            requestAnimationFrame(animate);
+        }
+        
+        animate();
+        console.log('Animation loop started!');
+    });
+    </script>
+</body>
+</html>
