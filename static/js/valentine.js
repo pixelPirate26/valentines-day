@@ -142,7 +142,7 @@
 
     RoseStem.prototype = {
         grow: function(amount) {
-            this.progress += amount || 0.006;
+            this.progress += amount || 0.004; // Slightly slower growth
             if (this.progress > this.maxProgress) {
                 this.progress = this.maxProgress;
                 return false;
@@ -155,37 +155,51 @@
             var path = this.path;
             
             ctx.save();
-            ctx.strokeStyle = '#2d5a27';
-            ctx.lineWidth = 4;
             ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
             
+            // Draw the main stem
             ctx.beginPath();
             ctx.moveTo(path[0].x, path[0].y);
             
-            var steps = Math.floor(this.progress * 50);
+            var steps = Math.floor(this.progress * 80); // High resolution
             for (var i = 1; i <= steps; i++) {
-                var t = i / 50;
+                var t = i / 80;
                 var pt = bezier(path, t);
                 ctx.lineTo(pt.x, pt.y);
             }
+            
+            // Gradient Stem
+            var grad = ctx.createLinearGradient(path[0].x, path[0].y, path[2].x, path[2].y);
+            grad.addColorStop(0, '#0a210f'); // Very dark green bottom
+            grad.addColorStop(1, '#2f5e36'); // Lighter green top
+            
+            ctx.strokeStyle = grad;
+            ctx.lineWidth = 5; // Elegant thickness
             ctx.stroke();
             
-            // Thorns
-            for (var j = 0; j < steps; j += 5) {
-                var t = j / 50;
-                var pt = bezier(path, t);
-                var dir = (j % 10 === 0) ? 1 : -1;
-                ctx.beginPath();
-                ctx.moveTo(pt.x, pt.y);
-                ctx.lineTo(pt.x + dir * 6, pt.y - 4);
-                ctx.strokeStyle = '#1a3d17';
-                ctx.lineWidth = 2;
-                ctx.stroke();
+            // Add subtle thorns (Spikes)
+            if (this.progress > 0.2) {
+                ctx.fillStyle = '#0a210f';
+                for (var j = 0; j < steps; j += 15) {
+                    if (j < 10) continue;
+                    var t = j / 80;
+                    var pt = bezier(path, t);
+                    // Calculate normal vector for perpendicular thorns
+                    // Simple approximation based on alternating sides
+                    var side = (j % 30 === 0) ? 1 : -1;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(pt.x, pt.y);
+                    ctx.lineTo(pt.x + side * 8, pt.y - 2); // Sharp tip
+                    ctx.lineTo(pt.x, pt.y + 6); // Base
+                    ctx.fill();
+                }
             }
             
             ctx.restore();
             
-            // Leaves
+            // Leaves with transparency
             for (var k = 0; k < this.leafPositions.length; k++) {
                 if (this.progress > this.leafPositions[k] + 0.1) {
                     var leafT = this.leafPositions[k];
@@ -198,30 +212,25 @@
         
         drawLeaf: function(x, y, dir, progress) {
             var ctx = this.ctx;
-            var size = 25 * progress;
+            var size = 35 * progress;
             
             ctx.save();
             ctx.translate(x, y);
             ctx.scale(dir, 1);
-            ctx.rotate(-0.3);
+            ctx.rotate(-0.4);
+            
+            // Leaf glow
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = 'rgba(47, 94, 54, 0.4)';
             
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.bezierCurveTo(size * 0.5, -size * 0.3, size, -size * 0.2, size, 0);
-            ctx.bezierCurveTo(size, size * 0.2, size * 0.5, size * 0.3, 0, 0);
+            // Elegant curved leaf
+            ctx.bezierCurveTo(size/2, -size/2, size, -size/4, size, 0);
+            ctx.bezierCurveTo(size, size/4, size/2, size/2, 0, 0);
             
-            var gradient = ctx.createLinearGradient(0, 0, size, 0);
-            gradient.addColorStop(0, '#2d5a27');
-            gradient.addColorStop(1, '#4a7c43');
-            ctx.fillStyle = gradient;
+            ctx.fillStyle = "rgba(47, 94, 54, 0.9)";
             ctx.fill();
-            
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(size * 0.8, 0);
-            ctx.strokeStyle = '#1a3d17';
-            ctx.lineWidth = 1;
-            ctx.stroke();
             
             ctx.restore();
         },
@@ -253,23 +262,15 @@
 
     RoseBloom.prototype = {
         bloom: function(amount) {
-            amount = amount || 0.015;
+            // Slower, elegant unfolding
+            amount = amount || 0.003; 
             
             if (this.scale < this.maxScale) {
-                this.scale += amount * 2;
+                this.scale += amount;
+                // Soft ease-out for a natural stop
                 if (this.scale > this.maxScale) this.scale = this.maxScale;
                 return true;
             }
-            
-            if (this.currentLayer < this.petalLayers) {
-                this.layerProgress[this.currentLayer] += amount;
-                if (this.layerProgress[this.currentLayer] >= 1) {
-                    this.layerProgress[this.currentLayer] = 1;
-                    this.currentLayer++;
-                }
-                return true;
-            }
-            
             return false;
         },
         
@@ -281,78 +282,107 @@
             
             ctx.save();
             ctx.translate(x, y);
-            ctx.scale(this.scale, this.scale);
             
-            for (var layer = this.petalLayers - 1; layer >= 0; layer--) {
-                var progress = this.layerProgress[layer];
-                if (progress <= 0) continue;
-                
-                var numPetals = this.petalsPerLayer[layer];
-                var layerRadius = 15 + layer * 10;
-                var petalSize = (20 - layer * 3) * progress;
-                var color = this.colors[layer];
-                
-                for (var i = 0; i < numPetals; i++) {
-                    var angle = (Math.PI * 2 * i / numPetals) + layer * 0.2;
-                    this.drawPetal(
-                        Math.cos(angle) * layerRadius * 0.3 * progress,
-                        Math.sin(angle) * layerRadius * 0.3 * progress - 5,
-                        petalSize,
-                        angle - Math.PI / 2,
-                        color
-                    );
-                }
-            }
+            // Adjust scale to be generous but not overwhelming
+            var finalScale = this.scale * 1.2; 
+            ctx.scale(finalScale, finalScale);
             
-            if (this.scale > 0.5) {
-                ctx.beginPath();
-                ctx.arc(0, -5, 8, 0, Math.PI * 2);
-                ctx.fillStyle = '#8b0000';
-                ctx.fill();
+            // Soft "Atmospheric" Glow behind the flower
+            ctx.shadowBlur = 40;
+            ctx.shadowColor = "rgba(180, 0, 40, 0.4)";
+            
+            // Draw the tight center bud first (Darker)
+            ctx.beginPath();
+            ctx.arc(0, 0, 6, 0, Math.PI * 2);
+            ctx.fillStyle = "#330000"; // Almost black-red center
+            ctx.fill();
+
+            // PHYLLOTAXIS ALGORITHM (The Golden Spiral)
+            // Increased density for a "lush" look (80 petals instead of 45)
+            var maxPetals = 80; 
+            var goldenAngle = 137.508 * (Math.PI / 180);
+            
+            for (var i = 0; i < maxPetals; i++) {
+                // Tighter spacing function for a solid core
+                var r = 3.5 * Math.sqrt(i) * this.scale; 
+                var theta = i * goldenAngle;
+                
+                var pX = r * Math.cos(theta);
+                var pY = r * Math.sin(theta);
+                
+                // Petal Size: Grows as we move outward
+                var petalSize = (5 + i * 0.25) * this.scale;
+                
+                // Rotation: Petals face the center
+                var rotation = theta + Math.PI / 2;
+                
+                // DYNAMIC COLOR PALETTE (Velvet Effect)
+                // Inner petals: Deep Burgundy (#4a0010)
+                // Outer petals: Rich Red (#c41e3a)
+                // We calculate a ratio (0 to 1) based on 'i'
+                var ratio = i / maxPetals;
+                
+                // Draw the sophisticated petal
+                this.drawVelvetPetal(pX, pY, petalSize, rotation, ratio);
             }
             
             ctx.restore();
         },
         
-        // Replace the drawPetal function (around line 270)
-        drawPetal: function(x, y, size, rotation, color) {
+        drawVelvetPetal: function(x, y, size, rotation, ratio) {
             var ctx = this.ctx;
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(rotation);
             
-            // Add Magical Glow
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = color;
-
-            // Create 3D Gradient for depth
-            var grad = ctx.createRadialGradient(0, 0, 0, 0, 0, size);
-            grad.addColorStop(0, color);        // Bright center
-            grad.addColorStop(0.7, color);      
-            grad.addColorStop(1, '#4b0000');    // Dark "3D" edges
-
+            // 1. SHAPE GEOMETRY (Cupped Shell, not a circle)
+            // We use a "squashed heart" shape to mimic real petals
             ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.bezierCurveTo(-size * 0.6, -size * 0.4, -size * 0.6, -size, 0, -size * 1.3);
-            ctx.bezierCurveTo(size * 0.6, -size, size * 0.6, -size * 0.4, 0, 0);
+            ctx.moveTo(0, 0); // Base
+            // Left curve (wide belly)
+            ctx.bezierCurveTo(-size, -size * 0.5, -size, -size * 1.5, 0, -size * 1.3);
+            // Right curve (wide belly)
+            ctx.bezierCurveTo(size, -size * 1.5, size, -size * 0.5, 0, 0);
+            
+            // 2. COLOR GRADIENT (Depth)
+            // Light at the tip, dark at the base
+            var grad = ctx.createLinearGradient(0, -size * 1.5, 0, 0);
+            
+            if (ratio < 0.3) {
+                // Inner Core: Dark & Intense
+                grad.addColorStop(0, '#99001b'); // Dark Red
+                grad.addColorStop(1, '#2b0005'); // Almost Black
+            } else {
+                // Outer Bloom: Bright & Lush
+                grad.addColorStop(0, '#ff1f48'); // Bright Ruby tip
+                grad.addColorStop(0.6, '#b3001e'); // Rich middle
+                grad.addColorStop(1, '#4a000c'); // Dark base shadow
+            }
+            
+            // Fill with shadow/glow disabled for the petal body (crisper look)
+            ctx.shadowBlur = 0;
             ctx.fillStyle = grad;
             ctx.fill();
             
-            // Highlight for 3D fold effect
+            // 3. THE "AESTHETIC" RIM LIGHT (Crucial!)
+            // We draw a faint, bright line only on the top edge
+            // This separates the layers and makes it look 3D
             ctx.beginPath();
-            ctx.moveTo(0, -size * 0.1);
-            ctx.lineTo(0, -size * 1.1);
-            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-            ctx.lineWidth = 1;
+            ctx.moveTo(-size * 0.8, -size * 1.1); // Start near top left
+            ctx.quadraticCurveTo(0, -size * 1.45, size * 0.8, -size * 1.1); // Arc over top
+            
+            ctx.lineWidth = 1.5;
+            // Subtle pink highlight
+            ctx.strokeStyle = "rgba(255, 180, 200, 0.25)"; 
             ctx.stroke();
             
             ctx.restore();
         },
+        
         isComplete: function() {
-            return this.currentLayer >= this.petalLayers;
+            return this.scale >= this.maxScale;
         }
     };
-
     // ============================================
     // HEART BLOOM
     // ============================================
@@ -483,7 +513,7 @@
         this.width = canvas.width;
         this.height = canvas.height;
         
-        var seedX = this.width / 2 - 100;
+        var seedX = this.width / 2;
         var seedY = this.height - 250;
         var groundY = this.height - 70; // This matches your ground line
 
@@ -569,8 +599,8 @@
             ctx.strokeStyle = '#3d2020';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(this.width / 2 - 300, y);
-            ctx.lineTo(this.width / 2 + 150, y);
+            ctx.moveTo(this.width / 2 - 225, y);
+            ctx.lineTo(this.width / 2 + 225, y);
             ctx.stroke();
             ctx.restore();
         },
